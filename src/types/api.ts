@@ -29,6 +29,7 @@ export interface UserInfo {
     creator: number
     createTime: string
     updateTime: string
+    password?: string
 }
 
 export interface Menu {

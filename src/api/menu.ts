@@ -24,3 +24,24 @@ export const getUserMenus = (roleIds: number[]) =>
  */
 export const getUserMenusByUserId = (userId: number) =>
     request.get<Result<Menu[]>>(`/system/menu/user/${userId}`)
+
+/**
+ * 创建菜单
+ * @param data 菜单信息
+ */
+export const createMenu = (data: Partial<Menu>) =>
+    request.post<Result<void>>('/system/menu', data)
+
+/**
+ * 更新菜单
+ * @param data 菜单信息
+ */
+export const updateMenu = (data: Partial<Menu>) =>
+    request.put<Result<void>>('/system/menu', data)
+
+/**
+ * 删除菜单
+ * @param menuId 菜单 ID
+ */
+export const deleteMenu = (menuId: number) =>
+    request.delete<Result<void>>(`/system/menu/${menuId}`)

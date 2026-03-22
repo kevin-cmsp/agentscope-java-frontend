@@ -1,9 +1,10 @@
 <template>
   <div class="main-layout">
     <!-- 侧边栏 -->
-    <aside class="sidebar">
+    <aside class="sidebar" :class="{ 'sidebar-collapsed': sidebarCollapsed }">
       <div class="logo">
-        <h2>后台管理系统</h2>
+        <h2 v-if="!sidebarCollapsed">后台管理系统</h2>
+        <el-icon v-else :size="24" color="#fff"><Setting /></el-icon>
       </div>
       <el-menu
           :default-active="activeMenu"
@@ -11,6 +12,7 @@
           text-color="#a6adb4"
           active-text-color="#409EFF"
           router
+          :collapse="sidebarCollapsed"
       >
         <template v-for="menu in menuStore.sidebarMenus" :key="menu.id">
           <el-sub-menu v-if="menu.children && menu.children.length > 0" :index="menu.path">
@@ -73,6 +75,37 @@
 
     <!-- AI 对话悬浮窗 -->
     <AIChat />
+
+    <!-- 个人信息对话框 -->
+    <el-dialog
+        v-model="userInfoDialogVisible"
+        title="个人信息"
+        width="500px"
+        :close-on-click-modal="false"
+    >
+      <el-form :model="userStore.userInfo" label-width="80px">
+        <el-form-item label="用户名">
+          <el-input v-model="userStore.userInfo.username" disabled />
+        </el-form-item>
+        <el-form-item label="昵称">
+          <el-input v-model="userStore.userInfo.nickname" disabled />
+        </el-form-item>
+        <el-form-item label="手机号">
+          <el-input v-model="userStore.userInfo.mobile" disabled />
+        </el-form-item>
+        <el-form-item label="邮箱">
+          <el-input v-model="userStore.userInfo.email" disabled />
+        </el-form-item>
+        <el-form-item label="状态">
+          <el-tag :type="userStore.userInfo.status === 1 ? 'success' : 'danger'">
+            {{ userStore.userInfo.status === 1 ? '启用' : '禁用' }}
+          </el-tag>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="userInfoDialogVisible = false">关闭</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -81,7 +114,7 @@ import { ref, computed, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useUserStore } from '@/store/modules/user'
 import { useMenuStore } from '@/store/modules/menu'
-import { UserFilled, Fold, Expand } from '@element-plus/icons-vue'
+import { UserFilled, Fold, Expand, Setting } from '@element-plus/icons-vue'
 import AIChat from '@/components/AIChat.vue'
 
 const router = useRouter()
@@ -90,6 +123,7 @@ const userStore = useUserStore()
 const menuStore = useMenuStore()
 
 const sidebarCollapsed = ref(false)
+const userInfoDialogVisible = ref(false)
 
 const activeMenu = computed(() => route.path)
 
@@ -110,8 +144,7 @@ const handleLogout = async () => {
 }
 
 const showUserInfo = () => {
-  // TODO: 显示用户信息对话框
-  console.log('显示用户信息')
+  userInfoDialogVisible.value = true
 }
 </script>
 
@@ -126,6 +159,10 @@ const showUserInfo = () => {
   width: 240px;
   background-color: #001529;
   transition: width 0.3s;
+
+  &.sidebar-collapsed {
+    width: 64px;
+  }
 
   .logo {
     height: 60px;

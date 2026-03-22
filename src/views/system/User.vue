@@ -80,15 +80,66 @@
           @current-change="handleSearch"
       />
     </el-card>
+
+    <!-- 新增/编辑用户对话框 -->
+    <el-dialog
+        v-model="dialogVisible"
+        :title="dialogTitle"
+        width="600px"
+        :close-on-click-modal="false"
+    >
+      <el-form
+          ref="userFormRef"
+          :model="formData"
+          :rules="formRules"
+          label-width="80px"
+      >
+        <el-form-item label="用户名" prop="username">
+          <el-input v-model="formData.username" placeholder="请输入用户名" :disabled="isEdit" />
+        </el-form-item>
+        <el-form-item label="密码" prop="password" v-if="!isEdit">
+          <el-input v-model="formData.password" type="password" placeholder="请输入密码" show-password />
+        </el-form-item>
+        <el-form-item label="昵称" prop="nickname">
+          <el-input v-model="formData.nickname" placeholder="请输入昵称" />
+        </el-form-item>
+        <el-form-item label="手机号" prop="mobile">
+          <el-input v-model="formData.mobile" placeholder="请输入手机号" />
+        </el-form-item>
+        <el-form-item label="邮箱" prop="email">
+          <el-input v-model="formData.email" placeholder="请输入邮箱" />
+        </el-form-item>
+        <el-form-item label="状态" prop="status">
+          <el-radio-group v-model="formData.status">
+            <el-radio :value="1">启用</el-radio>
+            <el-radio :value="0">禁用</el-radio>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item label="备注" prop="remark">
+          <el-input
+              v-model="formData.remark"
+              type="textarea"
+              :rows="3"
+              placeholder="请输入备注"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="dialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="submitForm" :loading="submitLoading">
+          确定
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, computed } from 'vue'
 import { Plus, Search, Refresh } from '@element-plus/icons-vue'
-import { queryUsers } from '@/api/user'
+import { queryUsers, createUser, updateUser, deleteUser, getUserById } from '@/api/user'
 import type { UserInfo } from '@/types/api'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 
 const searchForm = reactive({
   username: '',
@@ -102,6 +153,43 @@ const pagination = reactive({
   pageSize: 10,
   total: 0
 })
+
+const dialogVisible = ref(false)
+const dialogTitle = computed(() => isEdit.value ? '编辑用户' : '新增用户')
+const isEdit = ref(false)
+const submitLoading = ref(false)
+const userFormRef = ref<FormInstance>()
+
+const formData = reactive<Partial<UserInfo>>({
+  username: '',
+  password: '',
+  nickname: '',
+  mobile: '',
+  email: '',
+  status: 0,
+  remark: ''
+})
+
+const formRules: FormRules = {
+  username: [
+    { required: true, message: '请输入用户名', trigger: 'blur' },
+    { min: 2, max: 20, message: '长度在 2 到 20 个字符', trigger: 'blur' }
+  ],
+  password: [
+    { required: true, message: '请输入密码', trigger: 'blur' },
+    { min: 6, max: 20, message: '长度在 6 到 20 个字符', trigger: 'blur' }
+  ],
+  nickname: [
+    { required: true, message: '请输入昵称', trigger: 'blur' }
+  ],
+  mobile: [
+    { required: true, message: '请输入手机号', trigger: 'blur' },
+    { pattern: /^1[3-9]\d{9}$/, message: '手机号格式不正确', trigger: 'blur' }
+  ],
+  email: [
+    { type: 'email', message: '请输入正确的邮箱格式', trigger: 'blur' }
+  ]
+}
 
 // 加载数据
 const loadData = async () => {
@@ -134,12 +222,22 @@ const handleReset = () => {
 
 // 新增
 const handleCreate = () => {
-  ElMessage.info('新增用户功能待实现')
+  isEdit.value = false
+  resetForm()
+  dialogVisible.value = true
 }
 
 // 编辑
-const handleEdit = (row: UserInfo) => {
-  ElMessage.info(`编辑用户：${row.username}`)
+const handleEdit = async (row: UserInfo) => {
+  isEdit.value = true
+  try {
+    const res = await getUserById(row.id)
+    const userData = res.data
+    Object.assign(formData, userData)
+    dialogVisible.value = true
+  } catch (error) {
+    ElMessage.error('获取用户信息失败')
+  }
 }
 
 // 删除
@@ -148,10 +246,56 @@ const handleDelete = (row: UserInfo) => {
     confirmButtonText: '确定',
     cancelButtonText: '取消',
     type: 'warning'
-  }).then(() => {
-    ElMessage.success('删除成功')
+  }).then(async () => {
+    try {
+      await deleteUser(row.id)
+      ElMessage.success('删除成功')
+      loadData()
+    } catch (error) {
+      ElMessage.error('删除失败')
+    }
   }).catch(() => {
     ElMessage.info('已取消删除')
+  })
+}
+
+// 重置表单
+const resetForm = () => {
+  Object.assign(formData, {
+    username: '',
+    password: '',
+    nickname: '',
+    mobile: '',
+    email: '',
+    status: 1,
+    remark: ''
+  })
+  userFormRef.value?.clearValidate()
+}
+
+// 提交表单
+const submitForm = async () => {
+  if (!userFormRef.value) return
+
+  await userFormRef.value.validate(async (valid) => {
+    if (!valid) return
+
+    submitLoading.value = true
+    try {
+      if (isEdit.value) {
+        await updateUser(formData)
+        ElMessage.success('更新成功')
+      } else {
+        await createUser(formData)
+        ElMessage.success('创建成功')
+      }
+      dialogVisible.value = false
+      loadData()
+    } catch (error) {
+      ElMessage.error(isEdit.value ? '更新失败' : '创建失败')
+    } finally {
+      submitLoading.value = false
+    }
   })
 }
 
