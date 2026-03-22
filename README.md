@@ -136,10 +136,16 @@ npm run lint
 
 ### AI 聊天组件 (AIChat.vue)
 
-- 悬浮式窗口，可展开/折叠
+- 悬浮式窗口，点击右下角图标弹出，支持自由拖拽调整大小
+- 左右分栏布局（类似千问对话界面）：
+  - 左侧：新建对话按钮 + 对话历史列表（标题为用户首次提问前20字符）
+  - 右侧：聊天消息区域 + 输入区域
+- 用户消息靠右展示，助手回答靠左展示
 - 支持 Markdown 渲染（代码块、表格、列表等）
 - 消息发送：Enter 发送，Shift+Enter 换行
-- 新建对话 / 清空当前对话
+- 新建对话：清空消息区域，光标聚焦输入框
+- 点击历史对话：加载该对话的完整消息记录
+- 删除对话：支持删除单条对话历史
 - 加载状态骨架屏
 - 未读消息徽章提示
 
@@ -261,10 +267,14 @@ AES 加密配置（需与后端一致）：
 
 | 方法 | 接口 | 说明 |
 |------|------|------|
-| `chat(message)` | POST `/chat` | AI 聊天 |
-| `partyLevel(message)` | POST `/party/level` | 活动策划 |
-| `weather(city)` | POST `/weather` | 天气查询 |
-| `calculator(params)` | POST `/skills/calculator` | 计算器 |
+| `chat(message, conversationId?)` | POST `/chat` | AI 聊天（支持关联会话） |
+| `getConversations()` | GET `/chat/conversations` | 获取会话列表 |
+| `createConversation(title?)` | POST `/chat/conversations` | 创建新会话 |
+| `getConversationMessages(id)` | GET `/chat/conversations/{id}/messages` | 获取会话消息 |
+| `deleteConversation(id)` | DELETE `/chat/conversations/{id}` | 删除会话 |
+| `planParty(message)` | POST `/party/level` | 活动策划 |
+| `getWeather(city)` | POST `/weather` | 天气查询 |
+| `executeCalculator(params)` | POST `/skills/calculator` | 计算器 |
 
 ## 构建与部署
 

@@ -53,4 +53,21 @@ export interface ChatMessage {
 export interface ChatResponse {
     status: 'success' | 'error'
     content: string
+    conversationId?: number
+}
+
+export interface Conversation {
+    id: number
+    userId: number
+    title: string
+    createTime: string
+    updateTime: string
+}
+
+export interface Message {
+    id: number
+    conversationId: number
+    role: 'user' | 'assistant'
+    content: string
+    createTime: string
 }

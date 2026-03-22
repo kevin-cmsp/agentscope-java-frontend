@@ -1,13 +1,41 @@
 import request from '@/utils/request'
-import type { Result } from '@/types/api'
+import type { Result, Conversation, Message } from '@/types/api'
 
 /**
  * AI 聊天
  * @param message 用户消息
- * @returns AI 回复（status 和 content）
+ * @param conversationId 会话ID（可选，不传则自动创建新会话）
+ * @returns AI 回复（status、content、conversationId）
  */
-export const chat = (message: string) =>
-    request.post<Result<{ status: string; content: string }>>('/chat', { message })
+export const chat = (message: string, conversationId?: number) =>
+    request.post<Result<{ status: string; content: string; conversationId: number }>>('/chat', { message, conversationId })
+
+/**
+ * 获取会话列表
+ */
+export const getConversations = () =>
+    request.get<Result<Conversation[]>>('/chat/conversations')
+
+/**
+ * 创建新会话
+ * @param title 会话标题
+ */
+export const createConversation = (title?: string) =>
+    request.post<Result<Conversation>>('/chat/conversations', { title })
+
+/**
+ * 获取指定会话的消息列表
+ * @param conversationId 会话ID
+ */
+export const getConversationMessages = (conversationId: number) =>
+    request.get<Result<Message[]>>(`/chat/conversations/${conversationId}/messages`)
+
+/**
+ * 删除指定会话
+ * @param conversationId 会话ID
+ */
+export const deleteConversation = (conversationId: number) =>
+    request.delete<Result<void>>(`/chat/conversations/${conversationId}`)
 
 /**
  * 活动策划
