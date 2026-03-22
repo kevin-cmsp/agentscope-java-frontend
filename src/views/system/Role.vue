@@ -124,13 +124,42 @@
         </el-button>
       </template>
     </el-dialog>
+
+    <!-- 分配菜单对话框 -->
+    <el-dialog
+        v-model="menuDialogVisible"
+        :title="'分配菜单：' + currentRole?.name"
+        width="600px"
+        :close-on-click-modal="false"
+    >
+      <el-form>
+        <el-form-item label="选择菜单">
+          <el-tree
+              ref="menuTreeRef"
+              :data="menuTreeData"
+              :props="{ children: 'children', label: 'name' }"
+              show-checkbox
+              node-key="id"
+              :default-checked-keys="selectedMenuIds"
+              :expand-on-click-node="false"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="menuDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="submitMenuAssignment" :loading="menuAssignLoading">
+          确定
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, computed } from 'vue'
 import { Plus, Search, Refresh } from '@element-plus/icons-vue'
-import { queryRoles, createRole, updateRole, deleteRole, getRoleById } from '@/api/role'
+import { queryRoles, createRole, updateRole, deleteRole, getRoleById, assignMenus, getRoleMenus } from '@/api/role'
+import { getMenuTree } from '@/api/menu'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 
 const searchForm = reactive({
@@ -169,6 +198,14 @@ const formRules: FormRules = {
     { min: 2, max: 30, message: '长度在 2 到 30 个字符', trigger: 'blur' }
   ]
 }
+
+// 分配菜单相关
+const menuDialogVisible = ref(false)
+const menuAssignLoading = ref(false)
+const currentRole = ref<any>(null)
+const selectedMenuIds = ref<number[]>([])
+const menuTreeData = ref<any[]>([])
+const menuTreeRef = ref<any>()
 
 // 加载数据
 const loadData = async () => {
@@ -237,8 +274,44 @@ const handleDelete = (row: any) => {
 }
 
 // 分配菜单
-const handleAssignMenus = (row: any) => {
-  ElMessage.info(`分配菜单：${row.name}`)
+const handleAssignMenus = async (row: any) => {
+  currentRole.value = row
+  selectedMenuIds.value = []
+
+  try {
+    // 加载菜单树
+    const menuRes = await getMenuTree()
+    menuTreeData.value = menuRes.data
+
+    // 加载角色已分配的菜单
+    const roleMenusRes = await getRoleMenus(row.id)
+    selectedMenuIds.value = roleMenusRes.data || []
+
+    menuDialogVisible.value = true
+  } catch (error) {
+    ElMessage.error('加载菜单数据失败')
+  }
+}
+
+// 提交菜单分配
+const submitMenuAssignment = async () => {
+  if (!currentRole.value) return
+
+  menuAssignLoading.value = true
+  try {
+    // 获取选中的菜单 ID（包括半选中的节点）
+    const checkedKeys = menuTreeRef.value.getCheckedKeys()
+    const halfCheckedKeys = menuTreeRef.value.getHalfCheckedKeys()
+    const allCheckedKeys = [...checkedKeys, ...halfCheckedKeys]
+
+    await assignMenus(currentRole.value.id, allCheckedKeys)
+    ElMessage.success('分配成功')
+    menuDialogVisible.value = false
+  } catch (error) {
+    ElMessage.error('分配失败')
+  } finally {
+    menuAssignLoading.value = false
+  }
 }
 
 // 重置表单

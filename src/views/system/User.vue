@@ -52,10 +52,13 @@
           </template>
         </el-table-column>
         <el-table-column prop="createTime" label="创建时间" width="180" />
-        <el-table-column label="操作" fixed="right" width="200">
+        <el-table-column label="操作" fixed="right" width="280">
           <template #default="{ row }">
             <el-button type="primary" size="small" @click="handleEdit(row)">
               编辑
+            </el-button>
+            <el-button type="success" size="small" @click="handleAssignRoles(row)">
+              分配角色
             </el-button>
             <el-button
                 type="danger"
@@ -131,13 +134,41 @@
         </el-button>
       </template>
     </el-dialog>
+
+    <!-- 分配角色对话框 -->
+    <el-dialog
+        v-model="roleDialogVisible"
+        :title="'分配角色：' + currentUser?.username"
+        width="600px"
+        :close-on-click-modal="false"
+    >
+      <el-form>
+        <el-form-item label="选择角色">
+          <el-checkbox-group v-model="selectedRoleIds">
+            <el-checkbox
+                v-for="role in roleList"
+                :key="role.id"
+                :value="role.id"
+                :label="role.name"
+            />
+          </el-checkbox-group>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="roleDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="submitRoleAssignment" :loading="roleAssignLoading">
+          确定
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, computed } from 'vue'
 import { Plus, Search, Refresh } from '@element-plus/icons-vue'
-import { queryUsers, createUser, updateUser, deleteUser, getUserById } from '@/api/user'
+import { queryUsers, createUser, updateUser, deleteUser, getUserById, assignRoles, getUserRoles } from '@/api/user'
+import { queryRoles } from '@/api/role'
 import type { UserInfo } from '@/types/api'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 
@@ -190,6 +221,13 @@ const formRules: FormRules = {
     { type: 'email', message: '请输入正确的邮箱格式', trigger: 'blur' }
   ]
 }
+
+// 分配角色相关
+const roleDialogVisible = ref(false)
+const roleAssignLoading = ref(false)
+const currentUser = ref<UserInfo | null>(null)
+const selectedRoleIds = ref<number[]>([])
+const roleList = ref<any[]>([])
 
 // 加载数据
 const loadData = async () => {
@@ -257,6 +295,42 @@ const handleDelete = (row: UserInfo) => {
   }).catch(() => {
     ElMessage.info('已取消删除')
   })
+}
+
+// 分配角色
+const handleAssignRoles = async (row: UserInfo) => {
+  currentUser.value = row
+  selectedRoleIds.value = []
+
+  try {
+    // 加载所有角色
+    const rolesRes = await queryRoles()
+    roleList.value = rolesRes.data.filter((role: any) => role.status === 1)
+
+    // 加载用户已分配的角色
+    const userRolesRes = await getUserRoles(row.id)
+    selectedRoleIds.value = userRolesRes.data || []
+
+    roleDialogVisible.value = true
+  } catch (error) {
+    ElMessage.error('加载角色数据失败')
+  }
+}
+
+// 提交角色分配
+const submitRoleAssignment = async () => {
+  if (!currentUser.value) return
+
+  roleAssignLoading.value = true
+  try {
+    await assignRoles(currentUser.value.id, selectedRoleIds.value)
+    ElMessage.success('分配成功')
+    roleDialogVisible.value = false
+  } catch (error) {
+    ElMessage.error('分配失败')
+  } finally {
+    roleAssignLoading.value = false
+  }
 }
 
 // 重置表单
