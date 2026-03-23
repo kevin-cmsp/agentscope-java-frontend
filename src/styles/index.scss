@@ -25,6 +25,56 @@ body {
   height: 100vh;
 }
 
+// 全局代码高亮样式
+.hljs {
+  background: #282c34;
+  color: #abb2bf;
+  border-radius: 8px;
+}
+
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-meta-keyword {
+  color: #c678dd;
+}
+
+.hljs-built_in,
+.hljs-attribute,
+.hljs-symbol {
+  color: #e5c07b;
+}
+
+.hljs-string,
+.hljs-meta {
+  color: #98c379;
+}
+
+.hljs-number,
+.hljs-literal {
+  color: #d19a66;
+}
+
+.hljs-function,
+.hljs-title,
+.hljs-section {
+  color: #61afef;
+}
+
+.hljs-comment,
+.hljs-quote {
+  color: #5c6370;
+  font-style: italic;
+}
+
+.hljs-doctag,
+.hljs-strong {
+  font-weight: bold;
+}
+
+.hljs-emphasis {
+  font-style: italic;
+}
+
 // 滚动条样式
 ::-webkit-scrollbar {
   width: 8px;

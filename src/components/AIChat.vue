@@ -17,7 +17,12 @@
         <!-- 可拖拽调整大小的手柄 -->
         <div class="resize-handle resize-handle-top" @mousedown="startResize('top', $event)"></div>
         <div class="resize-handle resize-handle-left" @mousedown="startResize('left', $event)"></div>
+        <div class="resize-handle resize-handle-right" @mousedown="startResize('right', $event)"></div>
+        <div class="resize-handle resize-handle-bottom" @mousedown="startResize('bottom', $event)"></div>
         <div class="resize-handle resize-handle-top-left" @mousedown="startResize('top-left', $event)"></div>
+        <div class="resize-handle resize-handle-top-right" @mousedown="startResize('top-right', $event)"></div>
+        <div class="resize-handle resize-handle-bottom-left" @mousedown="startResize('bottom-left', $event)"></div>
+        <div class="resize-handle resize-handle-bottom-right" @mousedown="startResize('bottom-right', $event)"></div>
 
         <div class="chat-layout">
           <!-- 左侧：对话历史 -->
@@ -50,7 +55,7 @@
           <!-- 右侧：聊天区域 -->
           <div class="chat-main">
             <!-- 聊天头部 -->
-            <div class="chat-header">
+            <div class="chat-header" @mousedown="startDrag">
               <div class="chat-title">
                 <el-icon><ChatDotRound /></el-icon>
                 <span>AI 智能助手</span>
@@ -130,14 +135,27 @@
 
 <script setup lang="ts">
 import { ref, nextTick, onMounted, reactive, onBeforeUnmount } from 'vue'
-import { ChatDotRound, User, Plus, Close, Delete, Promotion } from '@element-plus/icons-vue'
+import { ChatDotRound, User, Plus, Close, Delete, Promotion, CopyDocument } from '@element-plus/icons-vue'
 import { chat, getConversations, getConversationMessages, deleteConversation } from '@/api/ai'
 import type { Conversation } from '@/types/api'
 import { ElMessage } from 'element-plus'
 import MarkdownIt from 'markdown-it'
 import dayjs from 'dayjs'
+import hljs from 'highlight.js'
+import 'highlight.js/styles/atom-one-dark.css'
 
-const md = new MarkdownIt()
+const md = new MarkdownIt({
+  highlight: function (str: string, lang: string) {
+    if (lang && hljs.getLanguage(lang)) {
+      try {
+        return '<pre class="hljs"><code>' +
+          hljs.highlight(str, { language: lang }).value +
+          '</code></pre>'
+      } catch (__) {}
+    }
+    return '<pre class="hljs"><code>' + md.utils.escapeHtml(str) + '</code></pre>'
+  }
+})
 
 const visible = ref(false)
 const loading = ref(false)
@@ -148,6 +166,12 @@ const inputRef = ref()
 const chatScrollRef = ref()
 const chatWindowRef = ref()
 
+// 窗口位置状态
+const windowPosition = reactive({
+  left: 0,
+  top: 0,
+})
+
 // 窗口大小状态
 const windowSize = reactive({
   width: 700,
@@ -157,6 +181,8 @@ const windowSize = reactive({
 const windowStyle = ref({
   width: '700px',
   height: '550px',
+  left: '0px',
+  top: '0px',
 })
 
 // 对话历史列表
@@ -319,9 +345,19 @@ const clearMessages = () => {
   ElMessage.success('对话已清空')
 }
 
-// 格式化内容（支持 Markdown）
+// 格式化内容（支持 Markdown 和代码高亮）
 const formatContent = (content: string) => {
   return md.render(content)
+}
+
+// 复制代码
+const copyCode = async (code: string) => {
+  try {
+    await navigator.clipboard.writeText(code)
+    ElMessage.success('代码已复制到剪贴板')
+  } catch (error) {
+    ElMessage.error('复制失败')
+  }
 }
 
 // 格式化时间
@@ -367,15 +403,20 @@ let startX = 0
 let startY = 0
 let startWidth = 0
 let startHeight = 0
+let resizeStartLeft = 0
+let resizeStartTop = 0
 
 const startResize = (direction: string, event: MouseEvent) => {
   event.preventDefault()
+  event.stopPropagation()
   isResizing = true
   resizeDirection = direction
   startX = event.clientX
   startY = event.clientY
   startWidth = windowSize.width
   startHeight = windowSize.height
+  resizeStartLeft = windowPosition.left
+  resizeStartTop = windowPosition.top
   document.addEventListener('mousemove', doResize)
   document.addEventListener('mouseup', stopResize)
 }
@@ -385,18 +426,31 @@ const doResize = (event: MouseEvent) => {
   const dx = event.clientX - startX
   const dy = event.clientY - startY
 
-  if (resizeDirection.includes('left')) {
+  // 处理左右方向的调整
+  if (resizeDirection.includes('right')) {
+    const newWidth = Math.max(500, Math.min(1200, startWidth + dx))
+    windowSize.width = newWidth
+  } else if (resizeDirection.includes('left')) {
     const newWidth = Math.max(500, Math.min(1200, startWidth - dx))
     windowSize.width = newWidth
+    windowPosition.left = Math.max(0, resizeStartLeft + dx)
   }
-  if (resizeDirection.includes('top')) {
+
+  // 处理上下方向的调整
+  if (resizeDirection.includes('bottom')) {
+    const newHeight = Math.max(400, Math.min(900, startHeight + dy))
+    windowSize.height = newHeight
+  } else if (resizeDirection.includes('top')) {
     const newHeight = Math.max(400, Math.min(900, startHeight - dy))
     windowSize.height = newHeight
+    windowPosition.top = Math.max(0, resizeStartTop + dy)
   }
 
   windowStyle.value = {
     width: windowSize.width + 'px',
     height: windowSize.height + 'px',
+    left: windowPosition.left + 'px',
+    top: windowPosition.top + 'px',
   }
 }
 
@@ -406,14 +460,97 @@ const stopResize = () => {
   document.removeEventListener('mouseup', stopResize)
 }
 
+// --- 窗口拖拽移动 ---
+let isDragging = false
+let dragStartX = 0
+let dragStartY = 0
+let dragStartLeft = 0
+let dragStartTop = 0
+
+const startDrag = (event: MouseEvent) => {
+  if (isResizing) return
+  isDragging = true
+  dragStartX = event.clientX
+  dragStartY = event.clientY
+  dragStartLeft = windowPosition.left
+  dragStartTop = windowPosition.top
+  document.addEventListener('mousemove', doDrag)
+  document.addEventListener('mouseup', stopDrag)
+}
+
+const doDrag = (event: MouseEvent) => {
+  if (!isDragging) return
+  const dx = event.clientX - dragStartX
+  const dy = event.clientY - dragStartY
+
+  windowPosition.left = Math.max(0, Math.min(window.innerWidth - windowSize.width, dragStartLeft + dx))
+  windowPosition.top = Math.max(0, Math.min(window.innerHeight - windowSize.height, dragStartTop + dy))
+
+  windowStyle.value = {
+    width: windowSize.width + 'px',
+    height: windowSize.height + 'px',
+    left: windowPosition.left + 'px',
+    top: windowPosition.top + 'px',
+  }
+}
+
+const stopDrag = () => {
+  isDragging = false
+  document.removeEventListener('mousemove', doDrag)
+  document.removeEventListener('mouseup', stopDrag)
+  nextTick(() => {
+    if (inputRef.value) {
+      inputRef.value.focus()
+    }
+  })
+}
+
 onBeforeUnmount(() => {
   document.removeEventListener('mousemove', doResize)
   document.removeEventListener('mouseup', stopResize)
+  document.removeEventListener('mousemove', doDrag)
+  document.removeEventListener('mouseup', stopDrag)
 })
 
 onMounted(() => {
+  // 初始化窗口位置（右下角）
+  const viewportWidth = window.innerWidth
+  const viewportHeight = window.innerHeight
+  windowPosition.left = viewportWidth - 700 - 20
+  windowPosition.top = viewportHeight - 550 - 72 - 20
+
+  windowStyle.value = {
+    width: windowSize.width + 'px',
+    height: windowSize.height + 'px',
+    left: windowPosition.left + 'px',
+    top: windowPosition.top + 'px',
+  }
+
   // 初始化
+  addCopyButtons()
 })
+
+// 为代码块添加复制按钮
+const addCopyButtons = () => {
+  nextTick(() => {
+    const preElements = document.querySelectorAll('pre.hljs')
+    preElements.forEach(pre => {
+      if (pre.querySelector('.copy-code-button')) return
+
+      const code = pre.querySelector('code')
+      if (!code) return
+
+      const button = document.createElement('button')
+      button.className = 'copy-code-button'
+      button.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg> 复制'
+      button.addEventListener('click', () => {
+        copyCode(code.textContent || '')
+      })
+      pre.appendChild(button)
+    })
+  })
+}
+
 </script>
 
 <style scoped lang="scss">
@@ -451,9 +588,7 @@ onMounted(() => {
 }
 
 .chat-window {
-  position: absolute;
-  right: 0;
-  bottom: 72px;
+  position: fixed;
   background: #fff;
   border-radius: 12px;
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.18);
@@ -462,6 +597,7 @@ onMounted(() => {
   overflow: hidden;
   min-width: 500px;
   min-height: 400px;
+  cursor: move;
 }
 
 .resize-handle {
@@ -482,12 +618,47 @@ onMounted(() => {
   width: 6px;
   cursor: w-resize;
 }
+.resize-handle-right {
+  top: 10px;
+  right: 0;
+  bottom: 10px;
+  width: 6px;
+  cursor: e-resize;
+}
+.resize-handle-bottom {
+  bottom: 0;
+  left: 10px;
+  right: 10px;
+  height: 6px;
+  cursor: s-resize;
+}
 .resize-handle-top-left {
   top: 0;
   left: 0;
   width: 12px;
   height: 12px;
   cursor: nw-resize;
+}
+.resize-handle-top-right {
+  top: 0;
+  right: 0;
+  width: 12px;
+  height: 12px;
+  cursor: ne-resize;
+}
+.resize-handle-bottom-left {
+  bottom: 0;
+  left: 0;
+  width: 12px;
+  height: 12px;
+  cursor: sw-resize;
+}
+.resize-handle-bottom-right {
+  bottom: 0;
+  right: 0;
+  width: 12px;
+  height: 12px;
+  cursor: se-resize;
 }
 
 .slide-fade-enter-active,
@@ -738,17 +909,75 @@ onMounted(() => {
           }
         }
 
-        :deep(pre) {
+        :deep(pre.hljs) {
           background: #282c34;
-          color: #abb2bf;
-          padding: 10px;
-          border-radius: 6px;
-          overflow-x: auto;
-          margin: 8px 0;
-          font-size: 12px;
+          border-radius: 8px;
+          position: relative;
+          margin: 12px 0;
+          overflow: hidden;
+
+          &::before {
+            content: '';
+            display: block;
+            height: 32px;
+            background: #21252b;
+            position: relative;
+
+            // macOS 窗口按钮
+            &::before {
+              content: '';
+              position: absolute;
+              left: 12px;
+              top: 50%;
+              transform: translateY(-50%);
+              display: flex;
+              gap: 6px;
+
+              background:
+                radial-gradient(circle, #ff5f56 0%, #ff5f56 8px, transparent 9px) 0% 50% / 12px 12px no-repeat,
+                radial-gradient(circle, #ffbd2e 0%, #ffbd2e 8px, transparent 9px) 14px 50% / 12px 12px no-repeat,
+                radial-gradient(circle, #27c935 0%, #27c935 8px, transparent 9px) 28px 50% / 12px 12px no-repeat;
+              width: 40px;
+              height: 12px;
+            }
+          }
 
           code {
-            font-family: 'Consolas', 'Monaco', monospace;
+            display: block;
+            padding: 0 16px 16px;
+            overflow-x: auto;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.5;
+            color: #abb2bf;
+            white-space: pre;
+          }
+
+          // 复制按钮
+          .copy-code-button {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            padding: 4px 8px;
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            border-radius: 4px;
+            color: #abb2bf;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+
+            &:hover {
+              background: rgba(255, 255, 255, 0.2);
+              color: #fff;
+            }
+
+            .el-icon {
+              font-size: 14px;
+            }
           }
         }
 
@@ -756,13 +985,47 @@ onMounted(() => {
           background: #f0f2f5;
           padding: 2px 5px;
           border-radius: 3px;
-          font-family: 'Consolas', 'Monaco', monospace;
+          font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
           font-size: 12px;
+          color: #e83e8c;
+        }
+
+        :deep(pre.hljs code) {
+          background: transparent;
+          padding: 0 16px 16px;
+          color: #abb2bf;
         }
 
         :deep(ul), :deep(ol) {
           padding-left: 20px;
           margin: 8px 0;
+        }
+
+        :deep(table) {
+          border-collapse: collapse;
+          width: 100%;
+          margin: 8px 0;
+
+          th, td {
+            border: 1px solid #dfe2e5;
+            padding: 8px 12px;
+            text-align: left;
+          }
+
+          th {
+            background: #f6f8fa;
+            font-weight: 600;
+          }
+        }
+
+        :deep(blockquote) {
+          border-left: 4px solid #409eff;
+          padding-left: 12px;
+          margin: 8px 0;
+          color: #606266;
+          background: #f5f7fa;
+          padding: 8px 12px;
+          border-radius: 4px;
         }
       }
 
