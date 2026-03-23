@@ -71,3 +71,23 @@ export interface Message {
     content: string
     createTime: string
 }
+
+export interface UserProfile {
+    id: number
+    userId: number
+    interestTags: string
+    frequentFeatures: string
+    preferenceSummary: string
+    chatStyle: string
+    totalChats: number
+    totalMessages: number
+    profileVersion: number
+    createTime: string
+    updateTime: string
+}
+
+export interface MemoryStats {
+    memorySize: number
+    hasSummary: boolean
+    needsCompression: boolean
+}

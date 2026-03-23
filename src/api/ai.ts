@@ -1,5 +1,5 @@
 import request from '@/utils/request'
-import type { Result, Conversation, Message } from '@/types/api'
+import type { Result, Conversation, Message, UserProfile, MemoryStats } from '@/types/api'
 
 /**
  * AI 聊天
@@ -62,3 +62,24 @@ export const getWeather = (city: string) =>
  */
 export const executeCalculator = (operation: string, a: number, b: number) =>
     request.post<string>('/skills/calculator', { operation, a, b })
+
+/**
+ * 获取当前用户画像
+ * @returns 用户画像信息
+ */
+export const getUserProfile = () =>
+    request.get<Result<UserProfile>>('/profile')
+
+/**
+ * 触发用户画像分析
+ * @returns 分析后的用户画像
+ */
+export const analyzeUserProfile = () =>
+    request.post<Result<UserProfile>>('/profile/analyze')
+
+/**
+ * 获取记忆统计信息
+ * @returns 记忆统计
+ */
+export const getMemoryStats = () =>
+    request.get<Result<MemoryStats>>('/memory/stats')
