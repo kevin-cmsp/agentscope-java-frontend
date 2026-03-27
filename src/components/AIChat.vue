@@ -87,6 +87,25 @@
                 </div>
                 <div class="message-content">
                   <div class="message-text" v-html="formatContent(message.content)"></div>
+                  <!-- 参考内容展示 -->
+                  <div v-if="message.references && message.role === 'assistant'" class="references-section">
+                    <div class="references-toggle" @click="message.showReferences = !message.showReferences">
+                      <el-icon><Document /></el-icon>
+                      <span>参考来源</span>
+                      <el-icon class="toggle-arrow" :class="{ expanded: message.showReferences }"><ArrowDown /></el-icon>
+                    </div>
+                    <transition name="collapse">
+                      <div v-if="message.showReferences" class="references-list">
+                        <div v-if="Array.isArray(message.references)" v-for="(ref, idx) in message.references" :key="idx" class="reference-item">
+                          <div class="ref-title">{{ ref.file_name || ref.fileName || ('文档 ' + (idx + 1)) }}</div>
+                          <div class="ref-content">{{ truncateText(ref.content || ref.text || JSON.stringify(ref), 200) }}</div>
+                        </div>
+                        <div v-else class="reference-item">
+                          <div class="ref-content">{{ truncateText(typeof message.references === 'string' ? message.references : JSON.stringify(message.references), 500) }}</div>
+                        </div>
+                      </div>
+                    </transition>
+                  </div>
                   <div class="message-time">{{ message.time }}</div>
                 </div>
               </div>
@@ -135,7 +154,7 @@
 
 <script setup lang="ts">
 import { ref, nextTick, onMounted, reactive, onBeforeUnmount } from 'vue'
-import { ChatDotRound, User, Plus, Close, Delete, Promotion, CopyDocument } from '@element-plus/icons-vue'
+import { ChatDotRound, User, Plus, Close, Delete, Promotion, CopyDocument, Document, ArrowDown } from '@element-plus/icons-vue'
 import { chat, getConversations, getConversationMessages, deleteConversation } from '@/api/ai'
 import type { Conversation } from '@/types/api'
 import { ElMessage } from 'element-plus'
@@ -193,6 +212,8 @@ interface DisplayMessage {
   role: 'user' | 'assistant'
   content: string
   time: string
+  references?: any
+  showReferences?: boolean
 }
 const messages = ref<DisplayMessage[]>([])
 
@@ -265,10 +286,11 @@ const sendMessage = async () => {
   try {
     const res = await chat(userMessageContent, currentConversationId.value || undefined)
 
-    // 处理返回内容 - 后端返回 Result<{status, content, conversationId}>
+    // 处理返回内容 - 后端返回 Result<{status, content, conversationId, references?}>
     const data = res.data
     const content = data?.content || '未获取到回复'
     const conversationId = data?.conversationId
+    const references = data?.references || null
 
     // 更新当前会话 ID
     if (conversationId) {
@@ -278,7 +300,9 @@ const sendMessage = async () => {
     const assistantMessage: DisplayMessage = {
       role: 'assistant',
       content: content,
-      time: dayjs().format('HH:mm')
+      time: dayjs().format('HH:mm'),
+      references: references,
+      showReferences: false
     }
 
     messages.value.push(assistantMessage)
@@ -348,6 +372,12 @@ const clearMessages = () => {
 // 格式化内容（支持 Markdown 和代码高亮）
 const formatContent = (content: string) => {
   return md.render(content)
+}
+
+// 截断文本
+const truncateText = (text: string, maxLen: number) => {
+  if (!text) return ''
+  return text.length > maxLen ? text.substring(0, maxLen) + '...' : text
 }
 
 // 复制代码
@@ -1033,6 +1063,87 @@ const addCopyButtons = () => {
         font-size: 10px;
         color: #c0c4cc;
         margin-top: 4px;
+      }
+
+      // 参考来源区域
+      .references-section {
+        margin-top: 8px;
+        border-top: 1px dashed #e4e7ed;
+        padding-top: 6px;
+
+        .references-toggle {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+          cursor: pointer;
+          font-size: 12px;
+          color: #909399;
+          padding: 4px 0;
+          user-select: none;
+          transition: color 0.2s;
+
+          &:hover {
+            color: #409eff;
+          }
+
+          .toggle-arrow {
+            transition: transform 0.3s;
+            margin-left: auto;
+
+            &.expanded {
+              transform: rotate(180deg);
+            }
+          }
+        }
+
+        .references-list {
+          margin-top: 4px;
+
+          .reference-item {
+            background: #f5f7fa;
+            border-radius: 6px;
+            padding: 8px 10px;
+            margin-bottom: 6px;
+            border-left: 3px solid #409eff;
+
+            &:last-child {
+              margin-bottom: 0;
+            }
+
+            .ref-title {
+              font-size: 12px;
+              font-weight: 600;
+              color: #303133;
+              margin-bottom: 4px;
+            }
+
+            .ref-content {
+              font-size: 11px;
+              color: #606266;
+              line-height: 1.5;
+              word-break: break-all;
+            }
+          }
+        }
+      }
+
+      // collapse 过渡动画
+      .collapse-enter-active,
+      .collapse-leave-active {
+        transition: all 0.3s ease;
+        overflow: hidden;
+      }
+
+      .collapse-enter-from,
+      .collapse-leave-to {
+        opacity: 0;
+        max-height: 0;
+      }
+
+      .collapse-enter-to,
+      .collapse-leave-from {
+        opacity: 1;
+        max-height: 500px;
       }
     }
   }

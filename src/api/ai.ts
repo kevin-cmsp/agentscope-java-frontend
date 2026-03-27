@@ -8,7 +8,7 @@ import type { Result, Conversation, Message, UserProfile, MemoryStats } from '@/
  * @returns AI 回复（status、content、conversationId）
  */
 export const chat = (message: string, conversationId?: number) =>
-    request.post<Result<{ status: string; content: string; conversationId: number }>>('/chat', { message, conversationId })
+    request.post<Result<{ status: string; content: string; conversationId: number; references?: any }>>('/chat', { message, conversationId })
 
 /**
  * 获取会话列表

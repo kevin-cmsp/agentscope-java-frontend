@@ -54,6 +54,7 @@ export interface ChatResponse {
     status: 'success' | 'error'
     content: string
     conversationId?: number
+    references?: any
 }
 
 export interface Conversation {
